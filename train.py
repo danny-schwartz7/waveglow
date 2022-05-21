@@ -30,6 +30,7 @@ import os
 import torch
 
 #=====START: ADDED FOR DISTRIBUTED======
+from LibriDataset import LibriDataset
 from distributed import init_distributed, apply_gradient_allreduce, reduce_tensor
 from torch.utils.data.distributed import DistributedSampler
 #=====END:   ADDED FOR DISTRIBUTED======
@@ -37,6 +38,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 from glow import WaveGlow, WaveGlowLoss
 from mel2samp import Mel2Samp
+import datasets
 
 def load_checkpoint(checkpoint_path, model, optimizer):
     assert os.path.isfile(checkpoint_path)
@@ -90,10 +92,14 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                                                       optimizer)
         iteration += 1  # next iteration is iteration + 1
 
-    trainset = Mel2Samp(**data_config)
+    # trainset = Mel2Samp(**data_config) # original dataloader
+    data_config['hf_ds'] = datasets.load_dataset('librispeech_asr', 'clean', split='train.100')
+    del data_config['training_files']
+    trainset = LibriDataset(**data_config)
     # =====START: ADDED FOR DISTRIBUTED======
     train_sampler = DistributedSampler(trainset) if num_gpus > 1 else None
     # =====END:   ADDED FOR DISTRIBUTED======
+    # TODO: can we do better than num_workers = 1?
     train_loader = DataLoader(trainset, num_workers=1, shuffle=False,
                               sampler=train_sampler,
                               batch_size=batch_size,
