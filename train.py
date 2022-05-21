@@ -72,7 +72,8 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
     #=====END:   ADDED FOR DISTRIBUTED======
 
     criterion = WaveGlowLoss(sigma)
-    model = WaveGlow(**waveglow_config).cuda()
+    #model = WaveGlow(**waveglow_config).cuda()
+    model = torch.load("waveglow_256channels.pt")['model'].cuda()
 
     #=====START: ADDED FOR DISTRIBUTED======
     if num_gpus > 1:
