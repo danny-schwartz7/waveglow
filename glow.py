@@ -76,7 +76,7 @@ class Invertible1x1Conv(torch.nn.Module):
         # Ensure determinant is 1.0 not -1.0
         if torch.det(W) < 0:
             W[:,0] = -1*W[:,0]
-        W = W.view(c, c, 1)
+        W = W.contiguous().view(c, c, 1)
         self.conv.weight.data = W
 
     def forward(self, z, reverse=False):

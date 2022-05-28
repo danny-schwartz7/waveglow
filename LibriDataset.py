@@ -17,11 +17,22 @@ MAX_WAV_VALUE = 32768.0
 from mel2samp import Mel2Samp
 
 
+def filter_audio(hf_item, min_samples, target_sampling_rate):
+    # This fixes https://github.com/NVIDIA/waveglow/issues/95 which created instability during training
+    
+    # original_sampling_rate = hf_item['audio']['sampling_rate']min_samples / target_sampling_rate * original_sampling_rate
+    if hf_item['audio']['array'].shape[-1] < 22050:
+        return False
+    return True
+
 class LibriDataset(Mel2Samp):
     def __init__(self, hf_ds, segment_length, filter_length,
                  hop_length, win_length, sampling_rate, mel_fmin, mel_fmax):
-        self.hf_ds = hf_ds
-        hf_ds.shuffle(seed=1234)
+        hf_ds = hf_ds.filter(filter_audio, fn_kwargs={
+            'min_samples': segment_length,
+            'target_sampling_rate': sampling_rate
+        })
+        self.hf_ds = hf_ds.shuffle(seed=1234)
         self.stft = TacotronSTFT(filter_length=filter_length,
                                  hop_length=hop_length,
                                  win_length=win_length,
@@ -52,7 +63,8 @@ class LibriDataset(Mel2Samp):
             audio_start = random.randint(0, max_audio_start)
             audio = audio[audio_start:audio_start+self.segment_length]
         else:
-            audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
+            raise NotImplementedError("Audio too short")
+            # audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
 
         mel = self.get_mel(audio)
         audio = audio / MAX_WAV_VALUE
