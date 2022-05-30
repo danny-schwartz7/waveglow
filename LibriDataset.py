@@ -69,7 +69,7 @@ class LibriDataset(Mel2Samp):
         mel = self.get_mel(audio)
         audio = audio / MAX_WAV_VALUE
 
-        return (mel, audio)
+        return (mel, audio, hf_item['audio']['path'])
 
     def __len__(self):
         return len(self.hf_ds)
