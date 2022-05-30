@@ -87,7 +87,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         from apex import amp
         model, optimizer = amp.initialize(model, optimizer, opt_level='O1', loss_scale='dynamic') #, min_loss_scale=0.0078125
         for _scaler in amp._amp_state.loss_scalers:
-            _scaler._scale_seq_len = 25
+            _scaler._scale_seq_len = 50
 
     # Load checkpoint if one exists
     iteration = 0
@@ -146,16 +146,16 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             else:
                 reduced_loss = loss.item()
 
-            spike = old_loss and ((reduced_loss - old_loss) > 6 or not math.isfinite(reduced_loss))# and spike_i < 8
+            # spike = old_loss and ((reduced_loss - old_loss) > 6 or not math.isfinite(reduced_loss))# and spike_i < 8
 
-            if spike:
-                print('BADLOSS', i, paths, reduced_loss, old_loss, torch.logsumexp(mel, (1, 2)) - math.log(math.prod(mel.shape)), file=ofile)
-                print('BADLOSS', i, paths, reduced_loss, old_loss, torch.logsumexp(mel, (1, 2)) - math.log(math.prod(mel.shape)))
-                ofile.flush()
-                spike_i += 1
-            else:
-                spike_i = 0
-                old_loss = reduced_loss
+            # if spike:
+            #     print('BADLOSS', i, paths, reduced_loss, old_loss, torch.logsumexp(mel, (1, 2)) - math.log(math.prod(mel.shape)), file=ofile)
+            #     print('BADLOSS', i, paths, reduced_loss, old_loss, torch.logsumexp(mel, (1, 2)) - math.log(math.prod(mel.shape)))
+            #     ofile.flush()
+            #     spike_i += 1
+            # else:
+            #     spike_i = 0
+            #     old_loss = reduced_loss
 
             if fp16_run:
                 with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -163,9 +163,9 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             else:
                 loss.backward()
 
-            if spike:
-                iteration += 1
-                continue
+            # if spike:
+            #     iteration += 1
+            #     continue
 
             optimizer.step()
 
