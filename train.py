@@ -28,6 +28,7 @@ import argparse
 import json
 import os
 import torch
+import math
 
 #=====START: ADDED FOR DISTRIBUTED======
 from LibriDataset import LibriDataset
@@ -84,7 +85,9 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
 
     if fp16_run:
         from apex import amp
-        model, optimizer = amp.initialize(model, optimizer, opt_level='O1')
+        model, optimizer = amp.initialize(model, optimizer, opt_level='O1', loss_scale='dynamic') #, min_loss_scale=0.0078125
+        for _scaler in amp._amp_state.loss_scalers:
+            _scaler._scale_seq_len = 50
 
     # Load checkpoint if one exists
     iteration = 0
@@ -118,15 +121,21 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         from tensorboardX import SummaryWriter
         logger = SummaryWriter(os.path.join(output_directory, 'logs'))
 
+    ofile = open('badsamples.log', 'a')
+
     model.train()
     epoch_offset = max(0, int(iteration / len(train_loader)))
+    spike_i = 0
+    old_loss = None
+
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, epochs):
         print("Epoch: {}".format(epoch))
         for i, batch in enumerate(train_loader):
             model.zero_grad()
+            optimizer.zero_grad()
 
-            mel, audio = batch
+            mel, audio, paths = batch
             mel = torch.autograd.Variable(mel.cuda())
             audio = torch.autograd.Variable(audio.cuda())
             outputs = model((mel, audio))
@@ -137,11 +146,26 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             else:
                 reduced_loss = loss.item()
 
+            # spike = old_loss and ((reduced_loss - old_loss) > 6 or not math.isfinite(reduced_loss))# and spike_i < 8
+
+            # if spike:
+            #     print('BADLOSS', i, paths, reduced_loss, old_loss, torch.logsumexp(mel, (1, 2)) - math.log(math.prod(mel.shape)), file=ofile)
+            #     print('BADLOSS', i, paths, reduced_loss, old_loss, torch.logsumexp(mel, (1, 2)) - math.log(math.prod(mel.shape)))
+            #     ofile.flush()
+            #     spike_i += 1
+            # else:
+            #     spike_i = 0
+            #     old_loss = reduced_loss
+
             if fp16_run:
                 with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                    (10 * scaled_loss).backward()
             else:
-                loss.backward()
+                (10 * loss).backward()
+
+            # if spike:
+            #     iteration += 1
+            #     continue
 
             optimizer.step()
 
@@ -155,6 +179,15 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                         output_directory, iteration)
                     save_checkpoint(model, optimizer, learning_rate, iteration,
                                     checkpoint_path)
+                    # if fp16_run:
+                    #     from apex import amp
+                    #     import gc
+                    #     model = torch.load(checkpoint_path)['model'].cuda()
+                    #     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+                    #     model, optimizer, iteration = load_checkpoint(checkpoint_path, model,
+                    #                                                 optimizer)
+                    #     model, optimizer = amp.initialize(model, optimizer, opt_level='O1', loss_scale='dynamic')
+                    #     gc.collect()
 
             iteration += 1
 
