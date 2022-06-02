@@ -12,7 +12,7 @@ import librosa
 sys.path.insert(0, 'tacotron2')
 from tacotron2.layers import TacotronSTFT
 
-MAX_WAV_VALUE = 1#32768.0
+MAX_WAV_VALUE = 2 #32768.0    # 1.845481931243551
 
 from mel2samp import Mel2Samp
 

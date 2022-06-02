@@ -159,9 +159,9 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
 
             if fp16_run:
                 with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                    (10 * scaled_loss).backward()
             else:
-                loss.backward()
+                (10 * loss).backward()
 
             # if spike:
             #     iteration += 1
